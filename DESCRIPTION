@@ -1,0 +1,18 @@
+Package: agg
+Title: Some data aggregation functions
+Version: 0.0.0.9000
+Authors: Noah Peart
+Description: Some helper functions for aggregating data
+Depends:
+    R (>= 3.2.2)
+License: GPL-3
+LazyData: true
+Suggests:
+    testthat
+Imports:
+    data.table (>= 1.9.7)
+RoxygenNote: 5.0.0
+Collate:
+    'utils.R'
+    'df2tree.R'
+    'test_funs.R'
