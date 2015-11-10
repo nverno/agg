@@ -15,4 +15,5 @@ RoxygenNote: 5.0.0
 Collate:
     'utils.R'
     'df2tree.R'
+    'dtree2graph.R'
     'test_funs.R'

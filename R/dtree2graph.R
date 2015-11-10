@@ -20,15 +20,30 @@ dtree2graph <- function(dtree, value=NULL, all.cat=TRUE) {
     }
 }
 
-mapply(function(a,b))
 
 ## Testing
 library(igraph)
-dtree <- df2dtree(income, tree.order = c('education', 'gender', 'residence'),
+dtree <- df2dtree(income, tree.order = c('education', 'status', 'gender', 'residence'),
                 funs=list(mean=function(...) mean(c(...), na.rm=TRUE),
                           meanfrac=function(income, expense) mean(income/expense, na.rm=TRUE)),
                 targets=list(c('income', 'expense'), c('income', 'expense')))
 
-cbind(dtree$id[head(dtree$level,-1L) == dtree$level[-1L]])
+## cbind(dtree$id[head(dtree$level,-1L) == dtree$level[-1L]])
 
-dtree[id[level < 4], .(level, id), by=level]
+## dtree[id[level < 4], .(level, id), by=level]
+
+dat <- data.table(level = rep(1:4, times=2^(0:3)), id = 1:15)
+
+## my normal way, not using data table would involve a split and rep
+levs <- split(dat$id, dat$level)
+nodes <- unlist(mapply(function(a,b) rep(a, length.out=b), head(levs, -1L),
+                       tail(lengths(levs), -1L)), use.names = FALSE)
+
+## Desired result
+res <- cbind(nodes, dtree$id[-1L])
+
+
+make_tree_edgelist = function(lev) cbind( rep(seq(2^(lev-1)-1), each=2), seq(2, 2^lev-1) )
+
+
+

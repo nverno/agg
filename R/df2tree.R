@@ -47,15 +47,24 @@ df2dtree <- function(data, tree.order='', funs=NULL, targets=NULL) {
 
     ## Construct skeleton output
     m <- tail(ii, 1L)  # number of rows in output
-    res <- setDT(setNames(lapply(dat[, ord, with=FALSE], function(x)
-        addNA(factor(numeric(m), levels(x)))), ord))
+    res <- do.call("CJ", args=c("Total", lapply(dat[,ord[-1L],with=FALSE], levels)))
+    setnames(res, names(res), ord)
+    as.data.table(list(total='Total', lapply(1:(depth-1), function(i)
+        rep(NA, ii[i+1]+1)))
 
+                  
+                  
+    setkeyv(res, ord)
+    res[, c(get("level"), get("count")) := list(rep(1:depth, times=diff(ii)), NA_integer_)]
+
+    
     ## function to mapply at each level
-    FUN <- function(fn, vars) do.call(fn, unname(vars))
+    FUN <- function(fn, vars) { if (lengths(vars)) do.call(fn, unname(vars)) else NA }
     for (i in seq.int(depth)) {
         res[(ii[i] + 1L):ii[i + 1L],
-            c(ord[1:i], get("outnames"), get('level'), get('count')) := dat[, {
-                c(Map(FUN, funs, lapply(targets, function(x) .SD[, x, with=FALSE])), i, .N)
+            c(ord[1:i], get('level'), get('count'),
+              get("outnames")) := dat[, {
+                  i, .N, c(Map(FUN, funs, lapply(targets, function(x) .SD[, x, with=FALSE])))
             }, by=eval(ord[1:i])]]
     }
     return( res[] )
@@ -63,4 +72,26 @@ df2dtree <- function(data, tree.order='', funs=NULL, targets=NULL) {
 
 
 
+
+## A data.table like this with ids and levels
+dat <- data.table(level = rep(1:4, times=2^(0:3)), id = 1:15)
+
+## my normal way, not using data table would involve a split and rep
+levs <- split(dat$id, dat$level)
+nodes <- unlist(mapply(function(a,b) rep(a, length.out=b), head(levs, -1L),
+                       tail(lengths(levs), -1L)), use.names = FALSE)
+
+## Desired result
+res <- cbind(nodes, dat$id[-1L])
+
+## To visualize
+library(igraph)
+plot(graph_from_edgelist(cbind(nodes, dat$id[-1L])), layout=layout.reingold.tilford,
+     asp=0.6)
+
+
+example.data <- data.frame(letters = sample(x = LETTERS,size = 20,replace = T),
+                           numbers = sample(x = 0:9,size = 20,replace = T))
+
+attributes(obj = example.data)
 
