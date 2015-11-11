@@ -1,5 +1,11 @@
 context("df-trees")
 library(data.table)
+require(dplyr, quietly = TRUE)  # only to test against if wanted
+
+## Using this data and income from data folder as tests
+df <- data.frame(a=factor(sample(2, 20, TRUE)),
+                 b=factor(sample(3, 20, TRUE)),
+                 c=rnorm(20))
 
 ## Check proper combinations of inputs
 test_that('df2dtree fails appropriately', {
@@ -20,7 +26,10 @@ test_that('df2dtree fails appropriately', {
 
 ## Check output for grouping
 test_that('df2dtree produces correct output at grouping levels', {
-    
+    expect_equal(df2dtree(df)$count, nrow(df))
+    expect_equivalent(df2dtree(df, tree.order=c('a','b'),
+                          funs=list(out=function(x,y) sum(x*y/20)),
+                          targets=list(c('c', 'c')))$out[[1]], sum(df$c*df$c/20))
     expect_equal(df2dtree(income, funs=list(sum='sum'), targets = list('income'))$sum, 11540)
     expect_equal(df2dtree(income, tree.order = c('gender'), funs=list('sum'),
                           targets = list('income'))$output1, c(11540, 4651, 6889))
@@ -34,13 +43,24 @@ test_that('df2dtree produces correct output at grouping levels', {
                     targets=list(c('income', 'expense')))
 })
 
+test_that('df2dtree creates empty rows for missing factor levels', {
+    res <- df2dtree(income, tree.order = c('gender', 'education', 'status'),
+                    funs=list(sum="sum"), targets=list("income"))
+    expect <- sapply(c('gender', 'education', 'status'),
+                     function(i) length(unique(income[[i]])))
+    expect <- sum(cumprod(expect))+1  # for 'Total'
+    expect_equal(nrow(res), expect)
+})
 
-## df2dtree(income, funs=list('sum'), targets=list('income'))
+test_that('df2dtree creates list columns', {
+    f <- function(x, y) list(list(x, y))  # must be list(list(...)) since a list is expected return
 
-## grp <- c('')
-## for (i in c('education', 'gender', 'residence')) {
-##     tr <- grp
+    ## The 'out' column should be a list of list(income, expense) at each aggregation level
+    res <- df2dtree(income, 'gender', funs=list(out=f), targets=list(c('income', 'expense')))
 
-##     df2dtree(income, tr, funs=list(agg='agg4', agg1='agg3'),
-##              targets=list(agg1=c('income', 'income'), c('expense', 'income')))
-##     agg4(income$income, income$income)
+    if (!require(dplyr)) skip('dplyr is available')
+    expect <- income %>% group_by('gender') %>% filter(gender == "F") %>% ungroup() %>%
+        select(income) %>% unlist(., use.names=FALSE)
+      
+    expect_equal(res[gender =="F", out][[1]][[1]], expect)
+})

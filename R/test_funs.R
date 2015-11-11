@@ -1,6 +1,6 @@
 ## Should all be the same if names match
 ##' @name agg
-agg <- function(a, b) sum(sqrt(a^2 - b^2))
+agg <- function(a, b) sum(sqrt((a - b)^2))
 
 ##' @name agg1
 agg1 <- function(income, expense) sum(income / expense) * 100
@@ -32,3 +32,21 @@ lstFn <- function(a,b) list(list(a=a, b=b))
 ## res <- df2dtree(income, tree.order=c('education', 'gender'),
 ##                 funs=list(tst='lstFn'), targets=list(c('income', 'expense')))
 
+
+
+## A data.table like this with ids and levels
+library(data.table)
+dat <- data.table(level = rep(1:4, times=2^(0:3)), id = 1:15)
+
+## my normal way, not using data table would involve a split and rep
+levs <- split(dat$id, dat$level)
+nodes <- unlist(mapply(function(a,b) rep(a, length.out=b), head(levs, -1L),
+                       tail(lengths(levs), -1L)), use.names = FALSE)
+
+## Desired result
+res <- cbind(nodes, dat$id[-1L])
+
+## To visualize
+library(igraph)
+plot(graph_from_edgelist(cbind(nodes, dat$id[-1L])), layout=layout.reingold.tilford,
+     asp=0.6)

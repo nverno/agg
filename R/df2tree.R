@@ -7,7 +7,7 @@ NULL
 ##' @param funs A list of named functions to apply to each grouping of the data.  Can be NULL.
 ##' @param targets A list of target variables, an element for each function in \code{funs}.
 ##' @import data.table
-##' @return Returns a tree in data.table form.
+##' @return Returns a tree in data.table form (includes all factor combos even when NA values).
 ##' @export
 
 df2dtree <- function(data, tree.order='', funs=NULL, targets=NULL) {
@@ -19,11 +19,10 @@ df2dtree <- function(data, tree.order='', funs=NULL, targets=NULL) {
         warning('Targets are being ignored since no functions were defined.')
         targets <- NULL
     }
-    ns <- make.unique(c("total", "index", "count", "level", names(data)))  # unique names
+    ns <- make.unique(c("total", "level", "count", names(data)))  # unique names
     total <- ns[[1L]]
-    index <- ns[[2L]]
+    level <- ns[[2L]]
     count <- ns[[3L]]
-    level <- ns[[4L]]
     ord <- nonEmpty(c(total, tree.order)) # ordering variables
     depth <- length(ord)                  # depth of tree (+1 for total)
     
@@ -47,51 +46,36 @@ df2dtree <- function(data, tree.order='', funs=NULL, targets=NULL) {
 
     ## Construct skeleton output
     m <- tail(ii, 1L)  # number of rows in output
-    res <- do.call("CJ", args=c("Total", lapply(dat[,ord[-1L],with=FALSE], levels)))
-    setnames(res, names(res), ord)
-    as.data.table(list(total='Total', lapply(1:(depth-1), function(i)
-        rep(NA, ii[i+1]+1)))
-
-                  
-                  
+    allLevs <- do.call("CJ", args=c("Total", lapply(dat[,ord[-1L],with=FALSE], levels)))
+    setnames(allLevs, names(allLevs), ord)
+    dat <- dat[allLevs, on=ord]  # add empty levels to make graphing easier
+    
+    res <- as.data.table(lapply(ord, function(i) factor(integer(m), levels=c(NA, levels(dat[[i]])))))
+    setnames(res, ord)
     setkeyv(res, ord)
-    res[, c(get("level"), get("count")) := list(rep(1:depth, times=diff(ii)), NA_integer_)]
-
     
     ## function to mapply at each level
-    FUN <- function(fn, vars) { if (lengths(vars)) do.call(fn, unname(vars)) else NA }
+    ## proper column names are already found, don't need to match function arguments in do.call
+    FUN <- function(fn, vars) do.call(fn, unname(vars)) 
     for (i in seq.int(depth)) {
         res[(ii[i] + 1L):ii[i + 1L],
             c(ord[1:i], get('level'), get('count'),
               get("outnames")) := dat[, {
-                  i, .N, c(Map(FUN, funs, lapply(targets, function(x) .SD[, x, with=FALSE])))
-            }, by=eval(ord[1:i])]]
+                  c(i, .N, Map(FUN, funs, lapply(targets, function(x) .SD[, x, with=FALSE])))
+              }, by=eval(ord[1:i])]]
     }
+    setattr(res, "lev", get("level"))  # track the column storing level
+    
     return( res[] )
 }
 
+## ## Testing
+## data <- income
+## tree.order <- names(data)[-c(1:2)]
+## funs <- list(sum="sum", sum="sum")
+## targets <- list(c("income"), "expense")
 
-
-
-## A data.table like this with ids and levels
-dat <- data.table(level = rep(1:4, times=2^(0:3)), id = 1:15)
-
-## my normal way, not using data table would involve a split and rep
-levs <- split(dat$id, dat$level)
-nodes <- unlist(mapply(function(a,b) rep(a, length.out=b), head(levs, -1L),
-                       tail(lengths(levs), -1L)), use.names = FALSE)
-
-## Desired result
-res <- cbind(nodes, dat$id[-1L])
-
-## To visualize
-library(igraph)
-plot(graph_from_edgelist(cbind(nodes, dat$id[-1L])), layout=layout.reingold.tilford,
-     asp=0.6)
-
-
-example.data <- data.frame(letters = sample(x = LETTERS,size = 20,replace = T),
-                           numbers = sample(x = 0:9,size = 20,replace = T))
-
-attributes(obj = example.data)
+## tree.order <- ''
+## funs <- NULL
+## targets <- NULL
 
