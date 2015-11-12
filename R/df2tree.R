@@ -78,4 +78,3 @@ df2dtree <- function(data, tree.order='', funs=NULL, targets=NULL) {
 ## tree.order <- ''
 ## funs <- NULL
 ## targets <- NULL
-

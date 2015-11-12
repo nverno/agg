@@ -2,71 +2,63 @@
 ## dtree are ordered hierarchy from left to right by column
 ##' @import igraph
 ##' @import data.table
+##' @param dtree data.table/data.frame output from df2dtree (ie has been aggegregated)
+##' @param value Values to keep as attributes in graph (defaults to all)
+##' @param cols Aggregated columns (strings) to use for graph (defaults to all)
 ##' @export
-dtree2graph <- function(dtree, value=NULL, all.cat=TRUE) {
-    catCols <- sapply(dtree, class) == "factor"
-    depth <- which(!catCols)[[1L]] - 1L  # dtrees have have aggregated columns first
+dtree2graph <- function(dtree, values=TRUE, cols=TRUE) {
+    catCols <- sapply(dtree, class) == "factor" & (isTRUE(cols) | names(dtree) %in% cols)
+    valCols <- !catCols & (isTRUE(values) | names(dtree) %in% values)
+    sdcols <- names(catCols)[catCols]
+    valcols <- names(valCols)[valCols]
+    
     if (!inherits(dtree, "data.table")) dtree <- as.data.table(dtree)
-    level <- attr(dtree, "lev")
-    dtree[, id := 1:.N]  # node ids
+    level <- attr(dtree, "lev")                            # level column
+    dtree[, c(sdcols, valcols), with=FALSE]
     setkeyv(dtree, c(get(level), names(dtree[catCols])))
 
     ## Create edgelist
-    levs <- sapply(dtree[, catCols, with=FALSE], levels)
-    lens <- lengths(levs)
-    inds <- cumprod(lens)
-    nodes <- mapply(function(a, b, c) rep(sequence(a), b)+c,
-                    head(lens, -1L), head(inds, -1L), head(cumsum(lens) - lens, -1L))
-    
-    tst2 <- dtree[, .N, by = .(level = level - 1)][dtree, on='level', nomatch=0][
-        , .(nodes = rep(id, length.out = N[1])), by = level]
-    
-    dtree[, `:=`(id = 1:.N, reps = rep(0:3, cumprod(lengths(levs))))]
+    ns <- make.unique(c("id1", "id2", names(dtree)))[1:2]  # head/tail node ids
+    levs <- lapply(dtree[, catCols, with=FALSE], levels)   # list of levels
+    dtree[, get("ns") := edge_list(levs)]                  # add edges to tree
 
-    dtree[, id := 1:.N]
-    
-    ## Pull out the labels
-    levs <- sapply(1:depth, function(i) levels(droplevels(dtree[[i]])))
-    labels <- mapply(function(a, b) rep(a, length.out=b), levs, cumprod(lengths(levs)))
+    ## Extract labels: colInd
+    labels <- dtree[, colInd := sum(!is.na(.SD)), by=1:nrow(dtree), .SDcols=sdcols][
+      , as.character(.SD[[.BY[[1]]]]), by=colInd, .SDcols=sdcols]$V1
 
-    g <- graph.tree(0) + vertices(ids = 1:nrow(dtree), label=unlist(labels))
-    for (i in 1:depth) {
-        
-    }
-    
+    ## Make graph
+    ## id2 rows contain values corresponding to nodes == id2
+    g <- graph.tree(0) +
+        do.call(vertices,  # create vertices with all of the value attributes
+                c(list(id=dtree$id2, label=labels), as.list(dtree[, valcols, with=FALSE]))) +
+        edges(c(rbind(dtree$id1[-1L], dtree$id2[-1L])))  # add edges
+    return( g )
 }
 
-## Get edgelist given sequence of branching factors
+## Return ids for edgelist given list of factor levels
+##' @title edge_list
+##' @param levs list of levels of factors in tree
+##' @return list of tails and head in edgelist
+##' @export
 edge_list <- function(levs) {
     lens <- lengths(levs, use.names=FALSE)
     mult <- cumprod(lens)
-    nodes <- mapply(function(a, b, c) rep(a:(a+b), length.out=c),
-                    head(cumsum(lens), -1L), head(lens, -1L), mult[-1L])
+    starts <- c(0, cumsum(mult))
+    id1 <- unlist(mapply(function(a, b, c) rep.int(seq.int(a)+b, c),
+                           head(mult, -1L), head(starts, -2L), lens[-1L]))
+    list(id1=c(NA, id1), id2=seq_len(sum(mult)))
 }
 
-## ## Testing
-## library(igraph)
-dtree <- df2dtree(income, tree.order = c('education', 'status', 'gender', 'residence'),
-                funs=list(mean=function(...) mean(c(...), na.rm=TRUE),
-                          meanfrac=function(income, expense) mean(income/expense, na.rm=TRUE)),
-                targets=list(c('income', 'expense'), c('income', 'expense')))
-
-## ## cbind(dtree$id[head(dtree$level,-1L) == dtree$level[-1L]])
-
-## ## dtree[id[level < 4], .(level, id), by=level]
-
-## dat <- data.table(level = rep(1:4, times=2^(0:3)), id = 1:15)
-
-## ## my normal way, not using data table would involve a split and rep
-## levs <- split(dat$id, dat$level)
-## nodes <- unlist(mapply(function(a,b) rep(a, length.out=b), head(levs, -1L),
-##                        tail(lengths(levs), -1L)), use.names = FALSE)
-
-## ## Desired result
-## res <- cbind(nodes, dtree$id[-1L])
+## ## Data.table version for nodes
+## tst2 <- dtree[, .N, by = .(level = level - 1)][dtree, on='level', nomatch=0][
+##   , .(nodes = rep(id, length.out = N[1])), by = level]
+## ns <- tst2$nodes
+## edges <- edge_list(levs)
+## g <- graph_from_edgelist(do.call(cbind, edges))
+## plot(g, layout=layout.reingold.tilford)
 
 
-## make_tree_edgelist = function(lev) cbind( rep(seq(2^(lev-1)-1), each=2), seq(2, 2^lev-1) )
 
 
-                       
+
+
