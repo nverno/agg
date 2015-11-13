@@ -1,8 +1,10 @@
 context("df-trees")
 library(data.table)
-require(dplyr, quietly = TRUE)  # only to test against if wanted
+require(dplyr, quietly = TRUE)    # only to test against if wanted
+require(treemap, quietly = TRUE)  # test against tree w/o all levels
 
 ## Using this data and income from data folder as tests
+set.seed(0)
 df <- data.frame(a=factor(sample(2, 20, TRUE)),
                  b=factor(sample(3, 20, TRUE)),
                  c=rnorm(20))
@@ -52,15 +54,45 @@ test_that('df2dtree creates empty rows for missing factor levels', {
     expect_equal(nrow(res), expect)
 })
 
+
+if (!require(dplyr))
+    skip('dplyr is available')
+
 test_that('df2dtree creates list columns', {
     f <- function(x, y) list(list(x, y))  # must be list(list(...)) since a list is expected return
 
     ## The 'out' column should be a list of list(income, expense) at each aggregation level
     res <- df2dtree(income, 'gender', funs=list(out=f), targets=list(c('income', 'expense')))
 
-    if (!require(dplyr)) skip('dplyr is available')
     expect <- income %>% group_by('gender') %>% filter(gender == "F") %>% ungroup() %>%
-        select(income) %>% unlist(., use.names=FALSE)
+        dplyr::select(income) %>% unlist(., use.names=FALSE)
       
     expect_equal(res[gender =="F", out][[1]][[1]], expect)
+})
+
+
+test_that('df2dtree removes levels correctly', {
+    ## For testing without keeping all level combinations
+    ## Test against treemap function
+    data(business, package="treemap")  # data with huge numbers of levels
+    tree.order <- c("NACE1", "NACE2")
+    { pdf(NULL);
+        tst <- treemap(business,
+                       index = tree.order,
+                       vSize="employees",
+                       title.legend="number of NACE4 categories",
+                       type="value")
+        dev.off()
+    }
+    tst <- as.data.table(tst$tm[,c("level", tree.order, "vSize")])
+    setkeyv(tst, c(tree.order))
+    
+    res <- df2dtree(business, tree.order=tree.order,
+                    funs=list(vSize=function(...) sum(..., na.rm=TRUE)),
+                    targets=list('employees'), drop=TRUE)
+    res <- res[vSize > 0, ]
+    setkeyv(res, c("total", tree.order))
+    
+    expect_equal(nrow(res)-1, nrow(tst))
+    expect_equal(res$vSize[-1L], tst$vSize)
 })

@@ -1,52 +1,70 @@
+##
+## In utils.R: get_labels, make_labels edge_list 
+##' @include utils.R
+NULL
+
 ## Convert a dtree to an igraph
 ## dtree are ordered hierarchy from left to right by column
 ##' @import igraph
 ##' @import data.table
 ##' @param dtree data.table/data.frame output from df2dtree (ie has been aggegregated)
-##' @param value Values to keep as attributes in graph (defaults to all)
-##' @param cols Aggregated columns (strings) to use for graph (defaults to all)
+##' @param values Values to keep as attributes in graph (defaults to all)
+##' @param tree.depth levels of tree to add to graph (defaults to TRUE meaning all). Can be an integer or the name of the last category to include.
+##' @param copy Copy the data or modify in place (if data.table)
 ##' @export
-dtree2graph <- function(dtree, values=TRUE, cols=TRUE) {
-    catCols <- sapply(dtree, class) == "factor" & (isTRUE(cols) | names(dtree) %in% cols)
+dtree2graph <- function(dtree, values=TRUE, tree.depth=TRUE, copy=TRUE) {
+    if (is.null(tree.depth) || length(tree.depth)==0 ||
+        (is.character(tree.depth) && !(tree.depth %in% names(dtree))) ||
+        (is.numeric(tree.depth) && tree.depth < 1))
+        stop("Graph must have some depth.  'tree.depth' must be 'TRUE', a positive integer, or the name of one of the categorical columns.")
+    if (length(tree.depth) > 1) {
+        warning(sprintf("tree.depth takes a single value, using '%s'", as.character(tree.depth)))
+        tree.depth <- tree.depth[[1]]
+    }
+    if (is.null(values)) values <- FALSE
+    if (is.null(copy)) copy <- TRUE
+    
+    catCols <- sapply(dtree, class) == "factor"
+    maxDepth <- match(FALSE, catCols) - 1
+    depth <- if (is.character(tree.depth)) {
+                  which(names(catCols) == tree.depth)
+              } else if (is.numeric(tree.depth)) {
+                      tree.depth
+              } else maxDepth
+    catCols <- catCols & names(dtree) %in% names(dtree)[1:depth]
     valCols <- !catCols & (isTRUE(values) | names(dtree) %in% values)
     sdcols <- names(catCols)[catCols]
     valcols <- names(valCols)[valCols]
     
-    if (!inherits(dtree, "data.table")) dtree <- as.data.table(dtree)
+    if (!inherits(dtree, "data.table")) {
+        dtree <- as.data.table(dtree)
+    } else if (copy) dtree <- copy(dtree)
+    
     level <- attr(dtree, "lev")                            # level column
-    dtree[, c(sdcols, valcols), with=FALSE]
-    setkeyv(dtree, c(get(level), names(dtree[catCols])))
+    delcols <- names(dtree)[!(names(dtree) %in% c(sdcols, valcols, level))]
+    if (length(delcols)) dtree[, get("delcols") := NULL]   # remove columns
+    if (depth < maxDepth) dtree <- dtree[get("level") <= depth]
+    setkeyv(dtree, c(get(level), sdcols))
 
+    ## Make some unique names for output
+    ns <- as.list(make.unique(c("id1", "id2", "label", names(dtree))))
+    names(ns)[1:3] <- c("id1", "id2", "label")
+    
     ## Create edgelist
-    ns <- make.unique(c("id1", "id2", names(dtree)))[1:2]  # head/tail node ids
-    levs <- lapply(dtree[, catCols, with=FALSE], levels)   # list of levels
-    dtree[, get("ns") := edge_list(levs)]                  # add edges to tree
+    levs <- lapply(dtree[, catCols, with=FALSE], levels)                            # list of levels
+    dtree[, unlist(get("ns")[c("id1", "id2")], use.names=FALSE) := edge_list(levs)] # add edges to tree
 
-    ## Extract labels: colInd
-    labels <- dtree[, colInd := sum(!is.na(.SD)), by=1:nrow(dtree), .SDcols=sdcols][
-      , as.character(.SD[[.BY[[1]]]]), by=colInd, .SDcols=sdcols]$V1
+    ## Add labels
+    make_labels(dtree, sdcols=sdcols, colname=ns[[3L]])
 
     ## Make graph
     ## id2 rows contain values corresponding to nodes == id2
     g <- graph.tree(0) +
         do.call(vertices,  # create vertices with all of the value attributes
-                c(list(id=dtree$id2, label=labels), as.list(dtree[, valcols, with=FALSE]))) +
-        edges(c(rbind(dtree$id1[-1L], dtree$id2[-1L])))  # add edges
+                c(list(id=dtree[[ns$id2]], label=dtree[[ns$label]]),
+                  as.list(dtree[, valcols, with=FALSE]))) +
+        edges(c(rbind(dtree[[ns$id1]][-1L], dtree[[ns$id2]][-1L])))  # add edges
     return( g )
-}
-
-## Return ids for edgelist given list of factor levels
-##' @title edge_list
-##' @param levs list of levels of factors in tree
-##' @return list of tails and head in edgelist
-##' @export
-edge_list <- function(levs) {
-    lens <- lengths(levs, use.names=FALSE)
-    mult <- cumprod(lens)
-    starts <- c(0, cumsum(mult))
-    id1 <- unlist(mapply(function(a, b, c) rep.int(seq.int(a)+b, c),
-                           head(mult, -1L), head(starts, -2L), lens[-1L]))
-    list(id1=c(NA, id1), id2=seq_len(sum(mult)))
 }
 
 ## ## Data.table version for nodes
@@ -56,9 +74,4 @@ edge_list <- function(levs) {
 ## edges <- edge_list(levs)
 ## g <- graph_from_edgelist(do.call(cbind, edges))
 ## plot(g, layout=layout.reingold.tilford)
-
-
-
-
-
 

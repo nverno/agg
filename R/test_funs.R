@@ -29,24 +29,16 @@ agg4 <- function(b, a) sum(a / b) * 100
 ##' @name lstFn
 lstFn <- function(a,b) list(list(a=a, b=b))
 
-## res <- df2dtree(income, tree.order=c('education', 'gender'),
-##                 funs=list(tst='lstFn'), targets=list(c('income', 'expense')))
+## load testing variables
+load_vars <- function() {
+    tree.order = c('education', 'status', 'gender', 'residence')    
+    list2env(list(
+        tree.order = tree.order,
+        valCols = c('mean', 'meanfrac'),
+        dtree = df2dtree(income, tree.order=tree.order,
+                          funs=list(mean=function(...) mean(c(...), na.rm=TRUE),
+                                    meanfrac=function(income, expense) mean(income/expense, na.rm=TRUE)),
+                          targets=list(c('income', 'expense'), c('income', 'expense')))
+      ), envir=globalenv())
+}
 
-
-
-## A data.table like this with ids and levels
-library(data.table)
-dat <- data.table(level = rep(1:4, times=2^(0:3)), id = 1:15)
-
-## my normal way, not using data table would involve a split and rep
-levs <- split(dat$id, dat$level)
-nodes <- unlist(mapply(function(a,b) rep(a, length.out=b), head(levs, -1L),
-                       tail(lengths(levs), -1L)), use.names = FALSE)
-
-## Desired result
-res <- cbind(nodes, dat$id[-1L])
-
-## To visualize
-library(igraph)
-plot(graph_from_edgelist(cbind(nodes, dat$id[-1L])), layout=layout.reingold.tilford,
-     asp=0.6)

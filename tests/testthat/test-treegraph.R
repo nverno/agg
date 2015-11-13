@@ -1,4 +1,4 @@
-context("df-graphs")
+context("graph conversion")
 library(data.table)
 library(igraph)
 
@@ -41,16 +41,41 @@ test_that('dtree2graph produces different attributes', {
     expect_equal(names(vertex_attr(g)), c('id', 'label'))
 })
 
-test_that('dtree2graph handles categorical column selection', {
-    ## All categorical columns
-    cols <- TRUE
+test_that('dtree2graph handles depth selection', {
+    dtree <- df2dtree(income, tree.order=tree.order,
+                      funs=list(mean=function(...) mean(c(...), na.rm=TRUE),
+                                meanfrac=function(income, expense) mean(income/expense, na.rm=TRUE)),
+                      targets=list(c('income', 'expense'), c('income', 'expense')))
+
+    ## Complete graph
+    tree.depth <- TRUE
     n <- match(FALSE, sapply(dtree, is.factor)) - 1  # number of categories
     levs <- sapply(dtree[, 1:n, with=FALSE], levels)
-    g <- dtree2graph(dtree, cols=cols)
+    g <- dtree2graph(dtree, tree.depth=tree.depth)
     expect_equivalent(unique(vertex_attr(g)$level), 1:n)
     expect_equivalent(cumprod(lengths(levs, FALSE)), rle(vertex_attr(g)$level)$lengths)
 
-    ## Some categorical columns
-    cols <- c('total')
-    g <- dtree2graph(dtree, cols=cols)
+    ## Error with NULL depth, warning with length(tree.depth) > 1
+    expect_error(dtree2graph(dtree, tree.depth=NULL))
+    expect_warning(dtree2graph(dtree, tree.depth=1:2))
+
+    ## Depth == 1
+    g <- dtree2graph(dtree, tree.depth='total')
+    expect_equal(length(V(g)), 1)
+    expect_equal(length(E(g)), 0)
+    expect_equal(vertex_attr(g)$mean, dtree[1, mean])
+    
+    ## Same as previous, with number instead of name
+    g <- dtree2graph(dtree, tree.depth=1)
+    expect_equal(length(V(g)), 1)
+    expect_equal(length(E(g)), 0)
+    expect_equal(vertex_attr(g)$mean, dtree[1, mean])
+
+    ## Partial depth
+    g <- dtree2graph(dtree, tree.depth=3)
+    leaf <- max(V(g))
+    paths <- all_simple_paths(g, from=1, to=leaf, mode='out')
+    expect_equal(length(paths), 1)
+    expect_equal(length(paths[[1]]), 3)
+    expect_equivalent(vertex_attr(g, 'mean', leaf), dtree[leaf, mean])
 })
