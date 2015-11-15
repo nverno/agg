@@ -34,102 +34,37 @@ require(lazyeval)
 ## Compare with dplyr 
 tree.order <- c('ASPCL', 'ELEVCL', 'PPLOT', 'SPEC')
 fn <- function(HT, BA) IQR(HT / BA, na.rm=TRUE)
-funs <- list(out = fn)
+funs <- list(out = "fn")
 targets <- list(c('HT', 'BA'))
-
-## Some sample data, function, and variables to interpolate
-set.seed(0)
-dat <- data.frame(a=runif(10), b=runif(10))
-func <- function(x, y) { print(x); print(y); IQR(x / y, na.rm = TRUE) }
-fns <- list(fn="func")
-targs <- list("a", "b")
-
-library(dplyr)
-cl <- interp(~do.call(fn, xs),
-             .values=list(
-               fn=fns$fn,
-               xs = list(. = targs)))
-
-# ~do.call("fn", list("a", "b"))
-
-dat %>%
-  dplyr::summarize_(out = eval(cl))
-
-dat %>% summarise(out = do.call(funs$fn, unname(.[unlist(targs)])))
-dat %>% summarise(out = do.call(fn, lapply(targs, function(x) .[[x]])))
-
-## Expected result
-dat %>%
-  summarise(out = do.call(fn, list(a, b)))
-#        out
-# 1 1.084402
-
-fn <- function(x, y) { print(x); print(y); IQR(x / y, na.rm = TRUE) }
-dat %>%
-  summarise_(out = interp(~do.call(fn, xs), fn=funs$fn, xs=targs))
-# [1] "a"
-# [1] "b"
-# Error: non-numeric argument to binary operator
-
 
 microbenchmark(
 {
-    res1 <- bind_rows(
-        pp %>% dplyr::summarise_(out = interp(~do.call(fn ,targs), 
-                                              .values = list(fn=fn, targs=targets)))
-
-        pp %>% group_by(ASPCL) %>% dplyr::summarise(out=fn(HT, BA), level=2, count=n()),
-        pp %>% group_by(ASPCL, ELEVCL) %>% 
-            dplyr::summarise(out=fn(HT, BA), level=3, count=n()),
-        pp %>% group_by(ASPCL, ELEVCL, PPLOT) %>%
-            dplyr::summarise(out=fn(HT, BA), level=3, count=n()),
-        pp %>% group_by(ASPCL, ELEVCL, PPLOT, SPEC) %>%
-            dplyr::summarise(out=fn(HT, BA), level=4, count=n())
-    ) %>% arrange(level, ASPCL, ELEVCL, PPLOT, SPEC)
-
+  res1 <- bind_rows(
+    pp %>% dplyr::summarise(out = do.call(fn, list(HT, BA)), level=1, count=n()),
+    pp %>% group_by_(tree.order[1L]) %>%
+      dplyr::summarise(out=do.call(fn, list(HT, BA)), level=2, count=n()),
+    pp %>% group_by_(.dots=tree.order[1:2]) %>% 
+      dplyr::summarise(out=do.call(fn, list(HT, BA)), level=3, count=n()),
+    pp %>% group_by_(.dots=tree.order[1:3]) %>%
+      dplyr::summarise(out=do.call(fn, list(HT, BA)), level=3, count=n()),
+    pp %>% group_by_(.dots=tree.order) %>%
+      dplyr::summarise(out=do.call(fn, list(HT, BA)), level=4, count=n())
+  ) %>% arrange_(c("level", tree.order))
 },
 {
-    res <- df2dtree(pp, tree.order=tree.order, funs=funs, targets=targets, drop.levels=TRUE, in.place=TRUE)
+  res <- df2dtree(pp, tree.order=tree.order, funs=funs,
+                  targets=targets, drop.levels=TRUE)
 })
 
 
-################################################################################
-##
-##                                  Scratch
-##
-################################################################################
-library(data.table)
 
-# Potential species names
-pot.spp <- apply(expand.grid(letters[1:10], letters[1:10]),1, paste, collapse="")
+set.seed(0)
+dat <- data.frame(a=runif(10), b=runif(10), grp=factor(1:2))
+fn <- function(x, y) IQR(x / y, na.rm = TRUE)
+funs <- list(fn="fn")
+targs <- list("a", "b")
 
-# Potential sites
-pot.site <- apply(expand.grid(1:5, 1:5),1, paste, collapse="-")
+dat %>% group_by(grp) %>% summarise_(out = do.call(fn, unname(.[unlist(targs)])))
+dat %>% group_by(grp) %>% summarise_(out = do.call(fn, lapply(targs, function(x) .[[x]])))
+dat %>% group_by(grp) %>% summarise(out = do.call(fn, list(a, b)))
 
-# Size of data set
-nsamp <- 1E5
-
-# species, sites, years
-spp <- sample(pot.spp, nsamp, replace=TRUE, prob=(1:length(pot.spp)))
-site <- sample(pot.site, nsamp, replace=TRUE)
-year <- sample(1:20, nsamp, replace=TRUE)
-
-# data set
-test <- data.table(year=year, spp=spp, site=site, key=c("year", "spp", "site"), val=rnorm(nsamp))
-
-sdcols <- c('spp','site','year')
-setkeyv(test, sdcols)
-dat <- unique(test[, sdcols, with=FALSE])
-
-dat[, count:=.N, by="spp,site"]
-
-
-fs <- lapply(test[, sdcols, with=FALSE], unique)
-
-res <- dat[spp %in% sample(spp, 2), ][
-  site %in% sample(site, 3), ][
-    year %in% sample(year, 2), ]
-
-table(res$spp, res$site, res$year)
-
-dat[, ]

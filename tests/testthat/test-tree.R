@@ -12,11 +12,11 @@ df <- data.frame(a=factor(sample(2, 20, TRUE)),
 ## Check proper combinations of inputs
 test_that('df2dtree fails appropriately', {
     ## zero-length tree.order, no funs
-    expect_more_than(nrow(df2dtree(income, tree.order=c(''))), 0)
+    expect_error(df2dtree(income, tree.order=c('')))
 
     ## Test errors/warnings
     tree.order <- c('gender')
-    expect_warning(df2dtree(income, tree.order, targets=list(c(income))))
+    expect_warning(df2dtree(income, tree.order, targets=list(c('income'))))
 
     ## Currently only errors when 'funs' are present, but 'targets' are
     ## missing or NULL
@@ -28,11 +28,9 @@ test_that('df2dtree fails appropriately', {
 
 ## Check output for grouping
 test_that('df2dtree produces correct output at grouping levels', {
-    expect_equal(df2dtree(df)$count, nrow(df))
     expect_equivalent(df2dtree(df, tree.order=c('a','b'),
                           funs=list(out=function(x,y) sum(x*y/20)),
                           targets=list(c('c', 'c')))$out[[1]], sum(df$c*df$c/20))
-    expect_equal(df2dtree(income, funs=list(sum='sum'), targets = list('income'))$sum, 11540)
     expect_equal(df2dtree(income, tree.order = c('gender'), funs=list('sum'),
                           targets = list('income'))$output1, c(11540, 4651, 6889))
 
@@ -70,7 +68,6 @@ test_that('df2dtree creates list columns', {
     expect_equal(res[gender =="F", out][[1]][[1]], expect)
 })
 
-
 if (!require(treemap)) skip('treemap is unavailable')
 test_that('df2dtree removes levels correctly', {
     ## For testing without keeping all level combinations
@@ -90,9 +87,9 @@ test_that('df2dtree removes levels correctly', {
     
     res <- df2dtree(business, tree.order=tree.order,
                     funs=list(vSize=function(...) sum(..., na.rm=TRUE)),
-                    targets=list('employees'), drop=TRUE)
+                    targets=list('employees'), drop.levels=TRUE)
     res <- res[vSize > 0, ]
-    setkeyv(res, c("total", tree.order))
+    setkeyv(res, c(tree.order))
     
     expect_equal(nrow(res)-1, nrow(tst))
     expect_equal(res$vSize[-1L], tst$vSize)

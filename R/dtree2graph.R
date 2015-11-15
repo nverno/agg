@@ -12,11 +12,12 @@ NULL
 ##' @param tree.depth levels of tree to add to graph (defaults to TRUE meaning all). Can be an integer or the name of the last category to include.
 ##' @param copy Copy the data or modify in place (if data.table)
 ##' @export
+
 dtree2graph <- function(dtree, values=TRUE, tree.depth=TRUE, copy=TRUE) {
     if (is.null(tree.depth) || length(tree.depth)==0 ||
         (is.character(tree.depth) && !(tree.depth %in% names(dtree))) ||
-        (is.numeric(tree.depth) && tree.depth < 1))
-        stop("Graph must have some depth.  'tree.depth' must be 'TRUE', a positive integer, or the name of one of the categorical columns.")
+        (is.numeric(tree.depth) && tree.depth < 2))
+        stop("Graph must have some depth > 1.  'tree.depth' must be 'TRUE', a positive integer > 1, or the name of one of the categorical columns.")
     if (length(tree.depth) > 1) {
         warning(sprintf("tree.depth takes a single value, using '%s'", as.character(tree.depth)))
         tree.depth <- tree.depth[[1]]
@@ -24,14 +25,14 @@ dtree2graph <- function(dtree, values=TRUE, tree.depth=TRUE, copy=TRUE) {
     if (is.null(values)) values <- FALSE
     if (is.null(copy)) copy <- TRUE
     
-    catCols <- sapply(dtree, class) == "factor"
-    maxDepth <- match(FALSE, catCols) - 1
+    catCols <- lapply(dtree, class) == "factor"
+    maxDepth <- match(FALSE, catCols)
     depth <- if (is.character(tree.depth)) {
                   which(names(catCols) == tree.depth)
               } else if (is.numeric(tree.depth)) {
                       tree.depth
               } else maxDepth
-    catCols <- catCols & names(dtree) %in% names(dtree)[1:depth]
+    catCols <- catCols & names(dtree) %in% names(dtree)[1:(depth-1)]
     valCols <- !catCols & (isTRUE(values) | names(dtree) %in% values)
     sdcols <- names(catCols)[catCols]
     valcols <- names(valCols)[valCols]
@@ -44,7 +45,7 @@ dtree2graph <- function(dtree, values=TRUE, tree.depth=TRUE, copy=TRUE) {
     delcols <- names(dtree)[!(names(dtree) %in% c(sdcols, valcols, level))]
     if (length(delcols)) dtree[, get("delcols") := NULL]   # remove columns
     if (depth < maxDepth) dtree <- dtree[get("level") <= depth]
-    setkeyv(dtree, c(get(level), sdcols))
+    setkeyv(dtree, c(level, sdcols))
 
     ## Make some unique names for output
     ns <- as.list(make.unique(c("id1", "id2", "label", names(dtree))))
@@ -52,10 +53,12 @@ dtree2graph <- function(dtree, values=TRUE, tree.depth=TRUE, copy=TRUE) {
     
     ## Create edgelist
     levs <- lapply(dtree[, catCols, with=FALSE], levels)                            # list of levels
+    levs <- c(total='Total', levs)
     dtree[, unlist(get("ns")[c("id1", "id2")], use.names=FALSE) := edge_list(levs)] # add edges to tree
 
     ## Add labels
     make_labels(dtree, sdcols=sdcols, colname=ns[[3L]])
+    dtree[1, label := 'Total']
 
     ## Make graph
     ## id2 rows contain values corresponding to nodes == id2

@@ -12,7 +12,8 @@ dtree <- df2dtree(income, tree.order = tree.order,
 test_that('edge_list creates the proper edges from a list of levels.', {
     ## the example dtree has 59 nodes and should have
     ## 58 edges
-    levs <- lapply(dtree[, c('total', tree.order), with=FALSE], levels)
+    levs <- lapply(dtree[, tree.order, with=FALSE], levels)
+    levs <- c(total='Total', levs)
     es <- edge_list(levs)
     g <- graph_from_edgelist(do.call(cbind, es)[-1,])
     expect_equivalent(lengths(es), rep.int(nrow(dtree), 2))
