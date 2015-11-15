@@ -76,7 +76,7 @@ df2dtree <- function(data, tree.order, funs=NULL, targets=NULL, drop.levels=FALS
 
     setcolorder(res, c(ord, level, count, outnames))
     setattr(res, "level", get("level"))  # track the column storing level
-    setattr(res, "drop.levels", drop)  # were factor levels dropped? for graphing
+    setattr(res, "drop.levels", drop.levels)  # were factor levels dropped? for graphing
     return( res[] )
 }
 
