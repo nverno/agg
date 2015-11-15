@@ -16,7 +16,7 @@ compact <- function(x) {
 ## Return ids for edgelist given list of factor levels
 ##' @title edge_list
 ##' @param levs list of levels of factors in tree
-##' @return list of tails and head in edgelist
+##' @return list of tails and head in edgelist for full tree (all combinations)
 ##' @export
 edge_list <- function(levs) {
     lens <- lengths(levs, use.names=FALSE)
@@ -57,3 +57,15 @@ make_labels <- function(x, sdcols, colname) {
     }
 }
 
+## Collapse data.table categorical columns into two columns: head, tail
+collapse <- function(dtree, copy=FALSE) {
+    res <- if (copy) copy(dtree) else dtree
+    level <- attr(dtree, "level")
+    sdcols <- names(dtree)[1:max(dtree$level)]
+    dtree[level<max(level), `:=`(head = as.character(.SD[[.BY[[1L]]]]),
+                 tail = as.character(.SD[[.BY[[1L]]+1L]])),
+          by=get("level"), .SDcols = sdcols]
+    
+}
+
+## dtree[, head := as.character(.SD[[.BY[[1]]]]), by=get("level")]

@@ -40,7 +40,7 @@ dtree2graph <- function(dtree, values=TRUE, tree.depth=TRUE, copy=TRUE) {
         dtree <- as.data.table(dtree)
     } else if (copy) dtree <- copy(dtree)
     
-    level <- attr(dtree, "lev")                            # level column
+    level <- attr(dtree, "level")                            # level column
     delcols <- names(dtree)[!(names(dtree) %in% c(sdcols, valcols, level))]
     if (length(delcols)) dtree[, get("delcols") := NULL]   # remove columns
     if (depth < maxDepth) dtree <- dtree[get("level") <= depth]

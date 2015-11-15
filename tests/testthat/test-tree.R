@@ -56,7 +56,7 @@ test_that('df2dtree creates empty rows for missing factor levels', {
 
 
 if (!require(dplyr))
-    skip('dplyr is available')
+    skip('dplyr is unavailable')
 
 test_that('df2dtree creates list columns', {
     f <- function(x, y) list(list(x, y))  # must be list(list(...)) since a list is expected return
@@ -71,6 +71,7 @@ test_that('df2dtree creates list columns', {
 })
 
 
+if (!require(treemap)) skip('treemap is unavailable')
 test_that('df2dtree removes levels correctly', {
     ## For testing without keeping all level combinations
     ## Test against treemap function

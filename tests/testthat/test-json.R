@@ -2,10 +2,10 @@ context('json conversion')
 library(data.table)
 library(jsonlite)
 library(d3treeR)
-library(treemap)
 
 ## res <- d3treeR:::convert_treemap(as.data.frame(dtree), "test")
-
+if (!require(treemap)) skip("package 'treemap' not found.")
+data(business)
 { pdf(NULL);
     tst <- treemap(business,
             index=c("NACE1", "NACE2"),
