@@ -10,7 +10,9 @@ LazyData: true
 Suggests:
     testthat
 Imports:
-    data.table (>= 1.9.7)
+    data.table (>= 1.9.7),
+    igraph,
+    moosedata
 RoxygenNote: 5.0.0
 Collate:
     'utils.R'
