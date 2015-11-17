@@ -70,4 +70,4 @@ collapse <- function(dtree, copy=FALSE) {
 
 ## dtree[, head := as.character(.SD[[.BY[[1]]]]), by=get("level")]
 
-dtre
+
