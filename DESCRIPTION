@@ -12,7 +12,6 @@ Suggests:
 Imports: 
     data.table (>= 1.9.7),
     igraph,
-    moosedata,
     devtools
 RoxygenNote: 5.0.0
 Collate: 
