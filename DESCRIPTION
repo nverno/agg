@@ -3,19 +3,20 @@ Title: Some data aggregation functions
 Version: 0.0.0.9000
 Authors: Noah Peart
 Description: Some helper functions for aggregating data
-Depends: 
+Depends:
     R (>= 3.2.2)
 License: GPL-3
 LazyData: true
-Suggests: 
+Suggests:
     testthat
-Imports: 
+Imports:
     data.table (>= 1.9.7),
     igraph,
     devtools
 RoxygenNote: 5.0.0
-Collate: 
+Collate:
     'utils.R'
     'df2tree.R'
     'dtree2graph.R'
     'test_funs.R'
+    'zzz.R'

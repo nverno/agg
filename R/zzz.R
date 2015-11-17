@@ -1,6 +1,6 @@
-##' @param libname 
-##' @param pkgname 
 ##' @import devtools
+NULL
+
 .onLoad <- function(libname, pkgname) {
   pkglist <- list(
     c(name='moosedata',url='nverno/moosedata')
