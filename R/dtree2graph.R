@@ -25,7 +25,8 @@ dtree2graph <- function(data, values=TRUE, tree.depth=TRUE, copy=TRUE) {
     if (is.null(values)) values <- FALSE
     if (is.null(copy)) copy <- TRUE
     
-    level <- attr(data, "level")                            # level column
+    level <- attr(data, "level")          # level column
+    dropped <- attr(data, "drop.levels")  # full tree?
     catCols <- lapply(data, class) == "factor"
     depth <- if (is.character(tree.depth)) {
                   which(names(catCols) == tree.depth)
@@ -44,38 +45,46 @@ dtree2graph <- function(data, values=TRUE, tree.depth=TRUE, copy=TRUE) {
     delcols <- names(res)[!(names(res) %in% c(sdcols, valcols, level))]
     if (length(delcols)) res[, get("delcols") := NULL]   # remove columns
     if (depth < max(res[[level]])) res <- res[get("level") <= depth]
-    setkeyv(res, c(level, sdcols))
 
     ## Make some unique names for output
     ns <- as.list(make.unique(c("id1", "id2", "label", names(res))))
     names(ns)[1:3] <- c("id1", "id2", "label")
+
+    ## If a partial tree, collapse, make_labels and return graph
+    if (dropped) {
+      make_labels(res, sdcols, ns$label)
+      collapse(res, sdcols=sdcols, coln=c(ns$id1, ns$id2), copy=FALSE)
+      g <- graph_from_data_frame(
+        res[-1L, c(ns$id1, ns$id2), with=FALSE],     # edges
+        vertices = res[, c(ns$id2, ns$label, valcols), with=FALSE])  # vertices (id2 has unique names)
+      return( g )
+    }
+
+    ## Otherwise, construct edges (is this more efficient??)
+    setkeyv(res, c(level, sdcols))
     
     ## Create edgelist
     levs <- lapply(res[, catCols, with=FALSE], levels)                            # list of levels
     levs <- c(total='Total', levs)
     res[, unlist(get("ns")[c("id1", "id2")], use.names=FALSE) := edge_list(levs)] # add edges to tree
-
     ## Add labels
     make_labels(res, sdcols=sdcols, colname=ns[[3L]])
-    res[1, label := 'Total']
 
     ## Make graph
     ## id2 rows contain values corresponding to nodes == id2
-    g <- graph.tree(0) +
-        do.call(vertices,  # create vertices with all of the value attributes
-                c(list(id=res[[ns$id2]], label=res[[ns$label]]),
-                  as.list(res[, valcols, with=FALSE]))) +
-        edges(c(rbind(res[[ns$id1]][-1L], res[[ns$id2]][-1L])))  # add edges
+    setcolorder(res, c(ns$id1, ns$id2, setdiff(names(res), unlist(ns[c('id1', 'id2')]))))
+    g <- graph_from_data_frame(
+      res[-1L, c(ns$id1, ns$id2), with=FALSE],     # edges
+      vertices = res[, c(ns$id2, ns$label, valcols), with=FALSE])  # vertices (id2 has unique names)
+
+    ## Alternative, using edgelist, looks worse at a glance
+    ## g <- graph.tree(0) +
+    ##     do.call(vertices,  # create vertices with all of the value attributes
+    ##             c(list(id=res[[ns$id2]], label=res[[ns$label]]),
+    ##               as.list(res[, valcols, with=FALSE]))) +
+    ##     edges(c(rbind(res[[ns$id1]][-1L], res[[ns$id2]][-1L])))  # add edges
     return( g )
 }
-
-## ## Data.table version for nodes
-## tst2 <- dtree[, .N, by = .(level = level - 1)][dtree, on='level', nomatch=0][
-##   , .(nodes = rep(id, length.out = N[1])), by = level]
-## ns <- tst2$nodes
-## edges <- edge_list(levs)
-## g <- graph_from_edgelist(do.call(cbind, edges))
-## plot(g, layout=layout.reingold.tilford)
 
 ## testing
 load_graph <- function() {

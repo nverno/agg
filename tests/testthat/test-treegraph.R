@@ -12,17 +12,18 @@ valCols <- c('mean', 'meanfrac')
 dtree <- df2dtree(income, tree.order=tree.order,
                 funs=list(mean=function(...) mean(c(...), na.rm=TRUE),
                           meanfrac=function(income, expense) mean(income/expense, na.rm=TRUE)),
-                targets=list(c('income', 'expense'), c('income', 'expense')))
+                  targets=list(c('income', 'expense'), c('income', 'expense')),
+                  drop.levels=FALSE, drop.cols=TRUE)
 
 
-allValues <- c("id", "label", "level", "count", valCols)
+allValues <- sort(c("name", "label", "level", "count", valCols))
 g <- dtree2graph(dtree)
 
 test_that('dtree2graph produces a correct size graph', {
     expect_equal(length(V(g)), nrow(dtree))
     expect_equal(length(E(g)), nrow(dtree)-1L)
     expect_true(all(degree(g, mode='in')[-1L] == 1))  # all nodes except root have one in
-    expect_equivalent(names(vertex_attr(g)), allValues)
+    expect_equivalent(sort(names(vertex_attr(g))), allValues)
 })
 
 test_that('dtree2graph produces different attributes', {
@@ -34,17 +35,18 @@ test_that('dtree2graph produces different attributes', {
 
     ## Keep specific values
     g <- dtree2graph(dtree, values=vals)
-    expect_equal(names(vertex_attr(g)), c('id', 'label', vals))
+    expect_equal(sort(names(vertex_attr(g))), sort(c('name', 'label', vals)))
 
     ## No attributes
     g <- dtree2graph(dtree, values=FALSE)
-    expect_equal(names(vertex_attr(g)), c('id', 'label'))
+    expect_equal(names(vertex_attr(g)), c('name', 'label'))
 })
 
 test_that('dtree2graph handles depth selection', {
     dtree <- df2dtree(income, tree.order=tree.order,
                       funs=list(mean=function(...) mean(c(...), na.rm=TRUE),
-                                meanfrac=function(income, expense) mean(income/expense, na.rm=TRUE)),
+                        meanfrac=function(income, expense)
+                          mean(income/expense, na.rm=TRUE)),
                       targets=list(c('income', 'expense'), c('income', 'expense')))
 
     ## Complete graph

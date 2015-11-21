@@ -13,7 +13,7 @@ Imports:
     data.table (>= 1.9.7),
     igraph,
     devtools
-RoxygenNote: 5.0.0
+RoxygenNote: 5.0.1
 Collate:
     'utils.R'
     'df2tree.R'
